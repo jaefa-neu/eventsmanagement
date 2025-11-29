@@ -53,7 +53,7 @@
 
         // =========================================================
         // 👇 PASTE YOUR VERCEL URL HERE 👇
-        const BACKEND_URL = 'https://eventsmanagement-seven.vercel.app'; 
+        const BACKEND_URL = 'https://eventsmanagement-seven.vercel.app/'; 
         // =========================================================
 
         const API_URL = `${BACKEND_URL}/api/v1/events`;
@@ -96,9 +96,10 @@
             // Form
             const [formData, setFormData] = useState({
                 eventID: '',
+                eventName: '', 
                 client: '',
                 type: 'Meeting',
-                venue: '', // NEW
+                venue: '', 
                 date: '', 
                 startTime: '09:00',
                 pax: 50
@@ -141,11 +142,17 @@
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 
+                if(!formData.date) {
+                    alert("Please select a date");
+                    return;
+                }
+
                 const payload = {
                     eventID: parseInt(formData.eventID),
+                    eventName: formData.eventName,
                     client: formData.client,
                     type: formData.type,
-                    venue: formData.venue, // NEW
+                    venue: formData.venue, 
                     pax: parseInt(formData.pax),
                     startTime: formData.startTime,
                     month: parseInt(formData.date.split('-')[1]),
@@ -153,7 +160,13 @@
                     year: parseInt(formData.date.split('-')[0])
                 };
 
-                const url = isEditing ? `${API_URL}/${formData.eventID}` : API_URL;
+                // UPDATED: Logic to handle new route requirements
+                // PUT uses /api/v1/events/:id
+                // POST uses /api/v1/events/events (Based on your table)
+                const url = isEditing 
+                    ? `${API_URL}/${formData.eventID}` 
+                    : `${API_URL}/events`; 
+
                 const method = isEditing ? 'PUT' : 'POST';
 
                 try {
@@ -180,9 +193,10 @@
                 
                 setFormData({
                     eventID: event.eventID,
+                    eventName: event.eventName || '', 
                     client: event.client,
                     type: event.type,
-                    venue: event.venue || '', // NEW
+                    venue: event.venue || '', 
                     pax: event.pax,
                     startTime: event.startTime || '09:00',
                     date: `${event.year}-${m}-${d}`
@@ -195,10 +209,11 @@
             const openNew = () => {
                 setFormData({
                     eventID: Math.floor(Math.random() * 100000), 
+                    eventName: '', 
                     client: '',
                     type: 'Meeting',
-                    venue: '', // NEW
-                    date: new Date().toISOString().split('T')[0],
+                    venue: '', 
+                    date: '', 
                     startTime: '09:00',
                     pax: 20
                 });
@@ -206,24 +221,21 @@
                 setView('form');
             };
 
-            // Filter AND Sort Logic (Client Side Reinforcement)
+            // Filter AND Sort Logic
             const filteredEvents = events
                 .filter(e => {
-                    const matchesClient = e.client.toLowerCase().includes(searchTerm.toLowerCase());
+                    const searchLower = searchTerm.toLowerCase();
+                    const matchesName = (e.client && e.client.toLowerCase().includes(searchLower)) || 
+                                      (e.eventName && e.eventName.toLowerCase().includes(searchLower));
+                    
                     const matchesMonth = monthFilter ? e.month === parseInt(monthFilter) : true;
-                    return matchesClient && matchesMonth;
+                    return matchesName && matchesMonth;
                 })
                 .sort((a, b) => {
-                    // Create Date objects for comparison
-                    // Note: Month is 0-indexed in JS Date, but stored as 1-12 in DB.
                     const dateA = new Date(a.year, a.month - 1, a.day);
                     const dateB = new Date(b.year, b.month - 1, b.day);
-                    
-                    // Compare Dates
                     if (dateA < dateB) return -1;
                     if (dateA > dateB) return 1;
-
-                    // If Dates are equal, compare Time
                     return a.startTime.localeCompare(b.startTime);
                 });
 
@@ -260,7 +272,6 @@
 
                     <main className="max-w-4xl mx-auto px-4 py-8">
                         
-                        {/* URL Check Warning */}
                         {BACKEND_URL.includes('localhost') && !window.location.href.includes('localhost') && (
                              <div className="bg-amber-50 text-amber-700 p-3 rounded-lg mb-4 text-sm border border-amber-200">
                                 <strong>Setup Note:</strong> You are using 'localhost' as the API URL. If your backend is on Vercel, please edit the code and paste your Vercel URL in the <code>BACKEND_URL</code> variable.
@@ -284,7 +295,7 @@
                                         <i className="ph-bold ph-magnifying-glass absolute left-3 top-3 text-gray-400"></i>
                                         <input 
                                             type="text" 
-                                            placeholder="Search by client name..." 
+                                            placeholder="Search by event or client name..." 
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                             className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition"
@@ -328,9 +339,12 @@
                                                             
                                                             {/* Info */}
                                                             <div>
-                                                                <h3 className="font-semibold text-lg text-gray-800">{event.client}</h3>
+                                                                <h3 className="font-bold text-lg text-gray-800">{event.eventName}</h3>
                                                                 
-                                                                {/* NEW: Venue Display */}
+                                                                <div className="text-sm text-gray-500 mb-1">
+                                                                    <span className="font-medium text-gray-600">Client:</span> {event.client}
+                                                                </div>
+                                                                
                                                                 <div className="flex items-center gap-1 text-sm text-gray-500 mb-1">
                                                                      <i className="ph-fill ph-map-pin text-green-600"></i>
                                                                      <span>{event.venue || 'No Venue Listed'}</span>
@@ -400,6 +414,18 @@
                                     </div>
 
                                     <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1">Name of Event</label>
+                                        <input 
+                                            type="text" 
+                                            required
+                                            placeholder="e.g. Annual Shareholders Meeting"
+                                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition"
+                                            value={formData.eventName}
+                                            onChange={e => setFormData({...formData, eventName: e.target.value})}
+                                        />
+                                    </div>
+
+                                    <div>
                                         <label className="block text-sm font-medium text-gray-600 mb-1">Client Name</label>
                                         <input 
                                             type="text" 
@@ -410,7 +436,6 @@
                                         />
                                     </div>
 
-                                    {/* NEW: Venue Input */}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-600 mb-1">Venue Location</label>
                                         <input 
@@ -457,7 +482,7 @@
                                             <input 
                                                 type="date" 
                                                 required
-                                                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition"
+                                                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition text-gray-600"
                                                 value={formData.date}
                                                 onChange={e => setFormData({...formData, date: e.target.value})}
                                             />

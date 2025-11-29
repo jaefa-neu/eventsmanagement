@@ -1,5 +1,5 @@
 // ==============================
-// Simple Event CRUD (One File) - Updated with Venue & Sorting
+// Event CRUD - Matches Specific Route Table
 // Node.js + Express + MongoDB Atlas
 // ==============================
 
@@ -19,14 +19,13 @@ app.use(express.json());
 const eventSchema = new mongoose.Schema(
   {
     eventID: { type: Number, required: true, unique: true },
+    eventName: { type: String, required: true },
     client: { type: String, required: true },
     type: { type: String, required: true },
-    venue: { type: String, required: true }, // NEW FIELD
-    // Date Fields
+    venue: { type: String, required: true },
     month: { type: Number, required: true },
     day: { type: Number, required: true },
     year: { type: Number, required: true },
-    // Time Field
     startTime: { type: String, required: true }, 
     pax: { type: Number, required: true }
   }, 
@@ -35,96 +34,101 @@ const eventSchema = new mongoose.Schema(
 
 const Event = mongoose.model('Event', eventSchema);
 
-// ====== Routes ======
+// ====== Routes (Based on Table) ======
 
 // Root
 app.get('/', (req, res) => {
   res.send('✅ Event CRUD API is running!');
 });
 
-// Create an event
-app.post('/api/v1/events', async (req, res) => {
-  try {
-    const event = new Event(req.body);
-    await event.save();
-    res.status(201).json({
-      message: "Event added successfully",
-      event: event
-    });
-  } catch (err) {
-    if (err.code === 11000) { 
-      res.status(400).json({ message: "Event ID already exists" });
-    } else {
-      res.status(400).json({ message: err.message });
-    }
-  }
-});
-
-// Read all events (SORTED BY DATE)
+// 1. GET /api/v1/events (Returns all events)
 app.get('/api/v1/events', async (req, res) => {
   try {
-    // Sort Ascending: Year > Month > Day > Time
     const events = await Event.find().sort({ year: 1, month: 1, day: 1, startTime: 1 });
-    res.status(200).json({
-      message: "Events retrieved successfully",
-      events: events
-    });
+    res.status(200).json({ message: "Events retrieved successfully", events: events });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// Read single event by ID
+// 2. GET /api/v1/events/:id (Return one specific event)
 app.get('/api/v1/events/:id', async (req, res) => {
   try {
     const event = await Event.findOne({ eventID: parseInt(req.params.id) });
     if (!event) return res.status(404).json({ message: 'Event not found' });
-    res.status(200).json({
-      message: "Event retrieved successfully",
-      event: event
-    });
+    res.status(200).json({ message: "Event retrieved successfully", event: event });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// Update event (full update)
+// 3. GET /api/v1/events/month/:month
+app.get('/api/v1/events/month/:month', async (req, res) => {
+  try {
+    const monthEvents = await Event.find({ month: parseInt(req.params.month) });
+    if (monthEvents.length === 0) return res.status(404).json({ message: "No events for this month" });
+    res.status(200).json({ message: "Specific month events retrieved successfully", events: monthEvents });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// 4. GET /api/v1/events/client/:client
+app.get('/api/v1/events/client/:client', async (req, res) => {
+  try {
+    const clientEvents = await Event.find({ client: req.params.client });
+    if (clientEvents.length === 0) return res.status(404).json({ message: "No events listed for this client" });
+    res.status(200).json({ message: "Client events retrieved successfully", events: clientEvents });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// 5. POST /api/v1/events/events (Adds a new event)
+app.post('/api/v1/events/events', async (req, res) => {
+  try {
+    const event = new Event(req.body);
+    await event.save();
+    res.status(201).json({ message: "Event added successfully", event: event });
+  } catch (err) {
+    if (err.code === 11000) res.status(400).json({ message: "Event ID already exists" });
+    else res.status(400).json({ message: err.message });
+  }
+});
+
+// 6. PUT /api/v1/events/:id 
 app.put('/api/v1/events/:id', async (req, res) => {
   try {
     const urlId = parseInt(req.params.id);
-    // Added venue to destructuring
-    const { eventID, client, type, venue, month, day, year, pax, startTime } = req.body;
-    
-    // Added venue to validation
-    if (!eventID || !client || !type || !venue || !month || !day || !year || !pax || !startTime) {
-      return res.status(400).json({
-        message: "Update must have eventID, client, type, venue, date, startTime, and pax"
-      });
-    }
-    if (parseInt(eventID) !== urlId) {
-      return res.status(400).json({
-        message: "eventID in body must match URL ID"
-      });
-    }
+    const { eventID } = req.body; // Basic check, full validation handled by Schema
+    if (parseInt(eventID) !== urlId) return res.status(400).json({ message: "eventID in body must match URL ID" });
+
     const event = await Event.findOneAndUpdate({ eventID: urlId }, req.body, { new: true });
     if (!event) return res.status(404).json({ message: 'Event not found' });
-    res.status(200).json({
-      message: "Event updated successfully",
-      event: event
-    });
+    res.status(200).json({ message: "Event updated successfully", event: event });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// Delete event
+// 7. PATCH /api/v1/events/:id 
+app.patch('/api/v1/events/:id', async (req, res) => {
+  try {
+    const urlId = parseInt(req.params.id);
+    const event = await Event.findOneAndUpdate({ eventID: urlId }, req.body, { new: true });
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+    res.status(200).json({ message: "Event successfully patched", event: event });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// 8. DELETE /api/v1/events/:id 
 app.delete('/api/v1/events/:id', async (req, res) => {
   try {
     const event = await Event.findOneAndDelete({ eventID: parseInt(req.params.id) });
     if (!event) return res.status(404).json({ message: 'Event not found' });
-    res.status(200).json({
-      message: "Event deleted successfully"
-    });
+    res.status(200).json({ message: "Event deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
