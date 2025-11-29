@@ -100,7 +100,7 @@ app.post('/api/v1/events/events', async (req, res) => {
 app.put('/api/v1/events/:id', async (req, res) => {
   try {
     const urlId = parseInt(req.params.id);
-    const { eventID } = req.body; // Basic check, full validation handled by Schema
+    const { eventID } = req.body;
     if (parseInt(eventID) !== urlId) return res.status(400).json({ message: "eventID in body must match URL ID" });
 
     const event = await Event.findOneAndUpdate({ eventID: urlId }, req.body, { new: true });
