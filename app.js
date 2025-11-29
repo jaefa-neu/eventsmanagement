@@ -1,5 +1,5 @@
 // ==============================
-// Simple Event CRUD (One File) - Updated with Time
+// Simple Event CRUD (One File) - Updated with Venue & Sorting
 // Node.js + Express + MongoDB Atlas
 // ==============================
 
@@ -21,12 +21,13 @@ const eventSchema = new mongoose.Schema(
     eventID: { type: Number, required: true, unique: true },
     client: { type: String, required: true },
     type: { type: String, required: true },
+    venue: { type: String, required: true }, // NEW FIELD
     // Date Fields
     month: { type: Number, required: true },
     day: { type: Number, required: true },
     year: { type: Number, required: true },
-    // Time Field (New)
-    startTime: { type: String, required: true }, // Stores "14:30" or "02:30 PM"
+    // Time Field
+    startTime: { type: String, required: true }, 
     pax: { type: Number, required: true }
   }, 
   { timestamps: true }
@@ -41,16 +42,9 @@ app.get('/', (req, res) => {
   res.send('✅ Event CRUD API is running!');
 });
 
-// Logger middleware
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
-  next();
-});
-
 // Create an event
 app.post('/api/v1/events', async (req, res) => {
   try {
-    // Mongoose will automatically check for startTime because it is in the schema
     const event = new Event(req.body);
     await event.save();
     res.status(201).json({
@@ -58,7 +52,7 @@ app.post('/api/v1/events', async (req, res) => {
       event: event
     });
   } catch (err) {
-    if (err.code === 11000) { // Duplicate key error
+    if (err.code === 11000) { 
       res.status(400).json({ message: "Event ID already exists" });
     } else {
       res.status(400).json({ message: err.message });
@@ -66,10 +60,11 @@ app.post('/api/v1/events', async (req, res) => {
   }
 });
 
-// Read all events
+// Read all events (SORTED BY DATE)
 app.get('/api/v1/events', async (req, res) => {
   try {
-    const events = await Event.find().sort({ createdAt: -1 });
+    // Sort Ascending: Year > Month > Day > Time
+    const events = await Event.find().sort({ year: 1, month: 1, day: 1, startTime: 1 });
     res.status(200).json({
       message: "Events retrieved successfully",
       events: events
@@ -93,49 +88,17 @@ app.get('/api/v1/events/:id', async (req, res) => {
   }
 });
 
-// Read events by client
-app.get('/api/v1/events/client/:client', async (req, res) => {
-  try {
-    const clientEvents = await Event.find({ client: req.params.client });
-    if (clientEvents.length === 0) {
-      return res.status(404).json({ message: "No events listed for this client" });
-    }
-    res.status(200).json({
-      message: "Client events retrieved successfully",
-      events: clientEvents
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Read events by month
-app.get('/api/v1/events/month/:month', async (req, res) => {
-  try {
-    const monthEvents = await Event.find({ month: parseInt(req.params.month) });
-    if (monthEvents.length === 0) {
-      return res.status(404).json({ message: "No events for this month" });
-    }
-    res.status(200).json({
-      message: "Specific month events retrieved successfully",
-      events: monthEvents
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
 // Update event (full update)
 app.put('/api/v1/events/:id', async (req, res) => {
   try {
     const urlId = parseInt(req.params.id);
-    // Added startTime to destructuring
-    const { eventID, client, type, month, day, year, pax, startTime } = req.body;
+    // Added venue to destructuring
+    const { eventID, client, type, venue, month, day, year, pax, startTime } = req.body;
     
-    // Added startTime to validation check
-    if (!eventID || !client || !type || !month || !day || !year || !pax || !startTime) {
+    // Added venue to validation
+    if (!eventID || !client || !type || !venue || !month || !day || !year || !pax || !startTime) {
       return res.status(400).json({
-        message: "Update must have eventID, client, type, date fields, time, and pax"
+        message: "Update must have eventID, client, type, venue, date, startTime, and pax"
       });
     }
     if (parseInt(eventID) !== urlId) {
@@ -147,31 +110,6 @@ app.put('/api/v1/events/:id', async (req, res) => {
     if (!event) return res.status(404).json({ message: 'Event not found' });
     res.status(200).json({
       message: "Event updated successfully",
-      event: event
-    });
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-});
-
-// Partial update event (Date or Time)
-app.patch('/api/v1/events/:id', async (req, res) => {
-  try {
-    const urlId = parseInt(req.params.id);
-    const { month, day, year, startTime } = req.body;
-    
-    // Allow update if either Date parts OR Time is present
-    const isDateUpdate = (month && day && year);
-    if (!isDateUpdate && !startTime) {
-      return res.status(400).json({
-        message: "Must include date (month, day, year) or startTime to update"
-      });
-    }
-
-    const event = await Event.findOneAndUpdate({ eventID: urlId }, req.body, { new: true });
-    if (!event) return res.status(404).json({ message: 'Event not found' });
-    res.status(200).json({
-      message: "Event schedule successfully updated",
       event: event
     });
   } catch (err) {
