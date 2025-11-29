@@ -53,15 +53,12 @@
 
         // =========================================================
         // 👇 PASTE YOUR VERCEL URL HERE 👇
-        // Example: 'https://greenroot-backend.vercel.app'
-        const BACKEND_URL = 'https://eventsmanagement-seven.vercel.app'; 
+        const BACKEND_URL = 'http://localhost:3000'; 
         // =========================================================
 
         const API_URL = `${BACKEND_URL}/api/v1/events`;
 
-        // --- Helper Components ---
         const Badge = ({ children, type }) => {
-            // UPDATED COLORS FOR NEW OPTIONS
             const colors = {
                 Meeting: 'bg-blue-50 text-blue-700 border-blue-100',
                 Conference: 'bg-indigo-50 text-indigo-700 border-indigo-100',
@@ -69,9 +66,7 @@
                 Company: 'bg-slate-50 text-slate-700 border-slate-100',
                 Other: 'bg-gray-50 text-gray-600 border-gray-200'
             };
-            // Fallback to 'Other' style if type doesn't match
             const style = colors[type] || colors.Other;
-            
             return (
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${style}`}>
                     {children}
@@ -88,7 +83,6 @@
             return `${h12}:${minute} ${ampm}`;
         };
 
-        // --- Main Application ---
         function App() {
             const [events, setEvents] = useState([]);
             const [loading, setLoading] = useState(true);
@@ -103,7 +97,8 @@
             const [formData, setFormData] = useState({
                 eventID: '',
                 client: '',
-                type: 'Meeting', // Default updated
+                type: 'Meeting',
+                venue: '', // NEW
                 date: '', 
                 startTime: '09:00',
                 pax: 50
@@ -150,6 +145,7 @@
                     eventID: parseInt(formData.eventID),
                     client: formData.client,
                     type: formData.type,
+                    venue: formData.venue, // NEW
                     pax: parseInt(formData.pax),
                     startTime: formData.startTime,
                     month: parseInt(formData.date.split('-')[1]),
@@ -186,6 +182,7 @@
                     eventID: event.eventID,
                     client: event.client,
                     type: event.type,
+                    venue: event.venue || '', // NEW
                     pax: event.pax,
                     startTime: event.startTime || '09:00',
                     date: `${event.year}-${m}-${d}`
@@ -199,7 +196,8 @@
                 setFormData({
                     eventID: Math.floor(Math.random() * 100000), 
                     client: '',
-                    type: 'Meeting', // Default updated
+                    type: 'Meeting',
+                    venue: '', // NEW
                     date: new Date().toISOString().split('T')[0],
                     startTime: '09:00',
                     pax: 20
@@ -208,12 +206,26 @@
                 setView('form');
             };
 
-            // Filter Logic
-            const filteredEvents = events.filter(e => {
-                const matchesClient = e.client.toLowerCase().includes(searchTerm.toLowerCase());
-                const matchesMonth = monthFilter ? e.month === parseInt(monthFilter) : true;
-                return matchesClient && matchesMonth;
-            });
+            // Filter AND Sort Logic (Client Side Reinforcement)
+            const filteredEvents = events
+                .filter(e => {
+                    const matchesClient = e.client.toLowerCase().includes(searchTerm.toLowerCase());
+                    const matchesMonth = monthFilter ? e.month === parseInt(monthFilter) : true;
+                    return matchesClient && matchesMonth;
+                })
+                .sort((a, b) => {
+                    // Create Date objects for comparison
+                    // Note: Month is 0-indexed in JS Date, but stored as 1-12 in DB.
+                    const dateA = new Date(a.year, a.month - 1, a.day);
+                    const dateB = new Date(b.year, b.month - 1, b.day);
+                    
+                    // Compare Dates
+                    if (dateA < dateB) return -1;
+                    if (dateA > dateB) return 1;
+
+                    // If Dates are equal, compare Time
+                    return a.startTime.localeCompare(b.startTime);
+                });
 
             const months = [
                 "January", "February", "March", "April", "May", "June", 
@@ -317,7 +329,14 @@
                                                             {/* Info */}
                                                             <div>
                                                                 <h3 className="font-semibold text-lg text-gray-800">{event.client}</h3>
-                                                                <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-gray-500">
+                                                                
+                                                                {/* NEW: Venue Display */}
+                                                                <div className="flex items-center gap-1 text-sm text-gray-500 mb-1">
+                                                                     <i className="ph-fill ph-map-pin text-green-600"></i>
+                                                                     <span>{event.venue || 'No Venue Listed'}</span>
+                                                                </div>
+
+                                                                <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
                                                                     <Badge type={event.type}>{event.type}</Badge>
                                                                     
                                                                     <span className="flex items-center gap-1 text-gray-600">
@@ -391,6 +410,19 @@
                                         />
                                     </div>
 
+                                    {/* NEW: Venue Input */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1">Venue Location</label>
+                                        <input 
+                                            type="text" 
+                                            required
+                                            placeholder="e.g. Grand Hall, Room 302"
+                                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition"
+                                            value={formData.venue}
+                                            onChange={e => setFormData({...formData, venue: e.target.value})}
+                                        />
+                                    </div>
+
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-600 mb-1">Event Type</label>
@@ -399,7 +431,6 @@
                                                 value={formData.type}
                                                 onChange={e => setFormData({...formData, type: e.target.value})}
                                             >
-                                                {/* UPDATED OPTIONS */}
                                                 <option>Meeting</option>
                                                 <option>Conference</option>
                                                 <option>Anniversary</option>
