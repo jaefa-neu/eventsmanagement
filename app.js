@@ -1,5 +1,5 @@
 // ==============================
-// Event CRUD - Matches Specific Route Table
+// Event CRUD - Vercel Serverless Express
 // Node.js + Express + MongoDB Atlas
 // ==============================
 
@@ -9,10 +9,13 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 // ====== Middleware ======
-app.use(cors());
+app.use(cors({
+  origin: "*",
+  methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+  allowedHeaders: "Content-Type,Authorization"
+}));
 app.use(express.json());
 
 // ====== Mongoose Schema & Model ======
@@ -32,37 +35,37 @@ const eventSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Event = mongoose.model('Event', eventSchema);
+const Event = mongoose.models.Event || mongoose.model('Event', eventSchema);
 
-// ====== Routes (Based on Table) ======
+// ====== Routes ======
 
 // Root
 app.get('/', (req, res) => {
-  res.send('✅ Event CRUD API is running!');
+  res.send('✅ Event CRUD API is running on Vercel!');
 });
 
-// 1. GET /api/v1/events (Returns all events)
+// 1. GET all events
 app.get('/api/v1/events', async (req, res) => {
   try {
     const events = await Event.find().sort({ year: 1, month: 1, day: 1, startTime: 1 });
-    res.status(200).json({ message: "Events retrieved successfully", events: events });
+    res.status(200).json({ message: "Events retrieved successfully", events });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// 2. GET /api/v1/events/:id (Return one specific event)
+// 2. GET event by ID
 app.get('/api/v1/events/:id', async (req, res) => {
   try {
     const event = await Event.findOne({ eventID: parseInt(req.params.id) });
     if (!event) return res.status(404).json({ message: 'Event not found' });
-    res.status(200).json({ message: "Event retrieved successfully", event: event });
+    res.status(200).json({ message: "Event retrieved successfully", event });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// 3. GET /api/v1/events/month/:month
+// 3. GET events by month
 app.get('/api/v1/events/month/:month', async (req, res) => {
   try {
     const monthEvents = await Event.find({ month: parseInt(req.params.month) });
@@ -73,7 +76,7 @@ app.get('/api/v1/events/month/:month', async (req, res) => {
   }
 });
 
-// 4. GET /api/v1/events/client/:client
+// 4. GET events by client
 app.get('/api/v1/events/client/:client', async (req, res) => {
   try {
     const clientEvents = await Event.find({ client: req.params.client });
@@ -84,19 +87,19 @@ app.get('/api/v1/events/client/:client', async (req, res) => {
   }
 });
 
-// 5. POST /api/v1/events/events (Adds a new event)
+// 5. POST new event
 app.post('/api/v1/events/events', async (req, res) => {
   try {
     const event = new Event(req.body);
     await event.save();
-    res.status(201).json({ message: "Event added successfully", event: event });
+    res.status(201).json({ message: "Event added successfully", event });
   } catch (err) {
     if (err.code === 11000) res.status(400).json({ message: "Event ID already exists" });
     else res.status(400).json({ message: err.message });
   }
 });
 
-// 6. PUT /api/v1/events/:id 
+// 6. PUT event by ID
 app.put('/api/v1/events/:id', async (req, res) => {
   try {
     const urlId = parseInt(req.params.id);
@@ -105,25 +108,25 @@ app.put('/api/v1/events/:id', async (req, res) => {
 
     const event = await Event.findOneAndUpdate({ eventID: urlId }, req.body, { new: true });
     if (!event) return res.status(404).json({ message: 'Event not found' });
-    res.status(200).json({ message: "Event updated successfully", event: event });
+    res.status(200).json({ message: "Event updated successfully", event });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// 7. PATCH /api/v1/events/:id 
+// 7. PATCH event by ID
 app.patch('/api/v1/events/:id', async (req, res) => {
   try {
     const urlId = parseInt(req.params.id);
     const event = await Event.findOneAndUpdate({ eventID: urlId }, req.body, { new: true });
     if (!event) return res.status(404).json({ message: 'Event not found' });
-    res.status(200).json({ message: "Event successfully patched", event: event });
+    res.status(200).json({ message: "Event successfully patched", event });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// 8. DELETE /api/v1/events/:id 
+// 8. DELETE event by ID
 app.delete('/api/v1/events/:id', async (req, res) => {
   try {
     const event = await Event.findOneAndDelete({ eventID: parseInt(req.params.id) });
@@ -135,14 +138,21 @@ app.delete('/api/v1/events/:id', async (req, res) => {
 });
 
 // ====== Connect to MongoDB Atlas ======
-async function startServer() {
+let isConnected = false;
+
+async function connectDB() {
+  if (isConnected) return;
   try {
     await mongoose.connect(process.env.MONGODB_URI);
+    isConnected = true;
     console.log('✅ Connected to MongoDB Atlas');
-    app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
   } catch (err) {
     console.error('❌ Failed to connect:', err.message);
   }
 }
 
-startServer();
+// Export Express app for Vercel serverless
+module.exports = async (req, res) => {
+  await connectDB();
+  return app(req, res);
+};
