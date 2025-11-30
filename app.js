@@ -137,22 +137,16 @@ app.delete('/api/v1/events/:id', async (req, res) => {
   }
 });
 
-// ====== Connect to MongoDB Atlas ======
-let isConnected = false;
-
-async function connectDB() {
-  if (isConnected) return;
+// ====== Connect to MongoDB Atlas and start local server ======
+async function startServer() {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
-    isConnected = true;
     console.log('✅ Connected to MongoDB Atlas');
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
   } catch (err) {
     console.error('❌ Failed to connect:', err.message);
   }
 }
 
-// Export Express app for Vercel serverless
-module.exports = async (req, res) => {
-  await connectDB();
-  return app(req, res);
-};
+startServer();
