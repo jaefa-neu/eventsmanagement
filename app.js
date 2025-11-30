@@ -33,8 +33,7 @@ const options = {
     },
     servers: [
       {
-        url: "http://localhost:3000",
-        description: "Local Server",
+        url: "http://localhost:3000"
       },
     ],
   },
