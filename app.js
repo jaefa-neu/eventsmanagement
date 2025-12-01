@@ -22,6 +22,15 @@ app.use(cors({
 }));
 app.use(express.json());
 
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error("Database connection failed:", error);
+    res.status(500).json({ message: "Database connection error" });
+  }
+});
 
 // ====== Swagger Configuration ======
 const options = {
@@ -419,8 +428,12 @@ module.exports = app;
 
 // 3. Only listen to port if running locally (not in Vercel)
 if (require.main === module) {
+  // Only runs in local development
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
-      console.log(`🚀 Local Server running on http://localhost:${PORT}`);
+    console.log(`🚀 Local Server running on http://localhost:${PORT}`);
   });
 }
+
+// Export app for Vercel
+module.exports = app;
