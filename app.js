@@ -281,7 +281,7 @@ app.get('/api/v1/events/client/:client', async (req, res) => {
  *       400:
  *         description: Event ID already exists or error
  */
-app.post('/api/v1/events/events', async (req, res) => {
+app.post('/api/v1/events', async (req, res) => {
   try {
     const event = new Event(req.body);
     await event.save();
