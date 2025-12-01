@@ -1,5 +1,5 @@
 // ==============================
-// Event CRUD - Vercel Serverless Express + Swagger
+// Event CRUD + Swagger
 // Node.js + Express + MongoDB Atlas
 // ==============================
 
@@ -22,6 +22,7 @@ app.use(cors({
 }));
 app.use(express.json());
 
+
 // ====== Swagger Configuration ======
 const options = {
   definition: {
@@ -29,16 +30,21 @@ const options = {
     info: {
       title: "Planify API",
       version: "1.0.0",
-      description: "A system that allows users to create, update, and manage events. It handles event details, scheduling, participant count, and venue assignment The API provides endpoints for managing events, attendees, organizers, and related resources to streamline event planning and coordination.",
+      description: "A system that allows users to create, update, and manage events...",
     },
     servers: [
       {
-        url: "http://localhost:3000"
+        url: "http://localhost:3000",
+        description: "Local Development"
+      },
+      {
+        // REPLACE 'your-project-name' with your actual Vercel project name
+        url: "https://eventsmanagement-seven.vercel.app/", 
+        description: "Production Server (HTTPS)"
       },
     ],
   },
-  // This looks for API documentation in this file
-  apis: ["./app.js"], // ⚠️ IMPORTANT: Ensure your file is named 'server.js'. If not, change this string.
+  apis: ["./app.js"], 
 };
 
 const specs = swaggerJsDoc(options);
@@ -388,16 +394,33 @@ app.delete('/api/v1/events/:id', async (req, res) => {
   }
 });
 
-// ====== Connect to MongoDB Atlas and start local server ======
-async function startServer() {
+
+
+const connectDB = async () => {
   try {
+    // Check if already connected to avoid creating multiple connections in serverless env
+    if (mongoose.connection.readyState === 1) {
+        return;
+    }
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('✅ Connected to MongoDB Atlas');
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
   } catch (err) {
     console.error('❌ Failed to connect:', err.message);
   }
-}
+};
 
-startServer();
+// ====== Server Startup Logic ======
+
+// 1. Connect to DB immediately
+connectDB();
+
+// 2. Export the app for Vercel
+module.exports = app;
+
+// 3. Only listen to port if running locally (not in Vercel)
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+      console.log(`🚀 Local Server running on http://localhost:${PORT}`);
+  });
+}
