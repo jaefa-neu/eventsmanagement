@@ -15,10 +15,9 @@ const swaggerJsDoc = require('swagger-jsdoc');
 const app = express();
 
 // ====== 1. Define Database Connection Function FIRST ======
-// (We define this up here so it is available for the middleware below)
+// We define this here so it's available, but we don't call it yet.
 const connectDB = async () => {
   try {
-    // Check if already connected to avoid creating multiple connections in serverless env
     if (mongoose.connection.readyState === 1) {
       return;
     }
@@ -37,8 +36,7 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// ====== 3. Swagger Configuration (Place BEFORE DB Middleware) ======
-// We want Swagger to load even if the DB is down.
+// ====== 3. Swagger Configuration ======
 const options = {
   definition: {
     openapi: "3.0.0",
@@ -58,16 +56,30 @@ const options = {
       },
     ],
   },
-  apis: ["./app.js"], 
+  // ⚠️ FIX 1: Use __filename to ensure Vercel finds the JSDoc comments in this file
+  apis: [__filename], 
 };
 
 const specs = swaggerJsDoc(options);
-app.use("/api-docs", swaggerUI.serve, swaggerUI.setup(specs));
+
+// ⚠️ FIX 2: Load CSS/JS from CDN to prevent White Screen on Vercel
+app.use(
+  "/api-docs",
+  swaggerUI.serve,
+  swaggerUI.setup(specs, {
+    customCssUrl:
+      "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.0.0/swagger-ui.min.css",
+    customJs: [
+      "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.0.0/swagger-ui-bundle.js",
+      "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.0.0/swagger-ui-standalone-preset.js",
+    ],
+  })
+);
 
 // ====== 4. Database Connection Middleware ======
-// Only block actual API routes if DB is down, not Swagger.
+// We check DB connection AFTER loading Swagger, so docs always load.
 app.use(async (req, res, next) => {
-  // Skip DB check for Swagger assets (optional but good practice)
+  // Allow Swagger assets to load without DB connection
   if (req.path.startsWith('/api-docs')) return next();
 
   try {
@@ -301,7 +313,6 @@ app.get('/api/v1/events/client/:client', async (req, res) => {
  *       400:
  *         description: Event ID already exists or error
  */
-// NOTE: I fixed the path here to match standard naming (removed /events/events)
 app.post('/api/v1/events', async (req, res) => {
   try {
     const event = new Event(req.body);
