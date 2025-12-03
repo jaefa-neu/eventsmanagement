@@ -48,7 +48,7 @@ const options = {
       },
       {
         // REPLACE 'your-project-name' with your actual Vercel project name
-        url: "https://eventsmanagement-seven.vercel.app/", 
+        url: "https://eventsmanagement-seven.vercel.app", 
         description: "Production Server (HTTPS)"
       },
     ],
