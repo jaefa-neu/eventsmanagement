@@ -15,7 +15,6 @@ const swaggerJsDoc = require('swagger-jsdoc');
 const app = express();
 
 // ====== 1. Define Database Connection Function FIRST ======
-// We define this here so it's available, but we don't call it yet.
 const connectDB = async () => {
   try {
     if (mongoose.connection.readyState === 1) {
@@ -56,13 +55,11 @@ const options = {
       },
     ],
   },
-  // ⚠️ FIX 1: Use __filename to ensure Vercel finds the JSDoc comments in this file
   apis: [__filename], 
 };
 
 const specs = swaggerJsDoc(options);
 
-// ⚠️ FIX 2: Load CSS/JS from CDN to prevent White Screen on Vercel
 app.use(
   "/api-docs",
   swaggerUI.serve,
@@ -77,9 +74,7 @@ app.use(
 );
 
 // ====== 4. Database Connection Middleware ======
-// We check DB connection AFTER loading Swagger, so docs always load.
 app.use(async (req, res, next) => {
-  // Allow Swagger assets to load without DB connection
   if (req.path.startsWith('/api-docs')) return next();
 
   try {
@@ -94,7 +89,12 @@ app.use(async (req, res, next) => {
 // ====== Mongoose Schema & Model ======
 const eventSchema = new mongoose.Schema(
   {
-    eventID: { type: Number, required: true, unique: true },
+    // ⬇️ CHANGED: Auto-generate a 6-digit number
+    eventID: { 
+      type: Number, 
+      unique: true, 
+      default: () => Math.floor(100000 + Math.random() * 900000) 
+    },
     eventName: { type: String, required: true },
     client: { type: String, required: true },
     type: { type: String, required: true },
@@ -118,7 +118,6 @@ const Event = mongoose.models.Event || mongoose.model('Event', eventSchema);
  *     Event:
  *       type: object
  *       required:
- *         - eventID
  *         - eventName
  *         - client
  *         - type
@@ -131,7 +130,8 @@ const Event = mongoose.models.Event || mongoose.model('Event', eventSchema);
  *       properties:
  *         eventID:
  *           type: integer
- *           description: Unique ID for the event
+ *           description: Unique ID for the event (Auto-generated)
+ *           readOnly: true
  *         eventName:
  *           type: string
  *           description: Name of the event
@@ -157,7 +157,6 @@ const Event = mongoose.models.Event || mongoose.model('Event', eventSchema);
  *           type: integer
  *           description: Number of attendees
  *       example:
- *         eventID: 10101
  *         eventName: "Tech Conference"
  *         client: "Google"
  *         type: "Conference"
@@ -311,16 +310,16 @@ app.get('/api/v1/events/client/:client', async (req, res) => {
  *       201:
  *         description: The event was successfully created
  *       400:
- *         description: Event ID already exists or error
+ *         description: Error creating event
  */
 app.post('/api/v1/events', async (req, res) => {
   try {
+    // Mongoose will automatically add the eventID here
     const event = new Event(req.body);
     await event.save();
     res.status(201).json({ message: "Event added successfully", event });
   } catch (err) {
-    if (err.code === 11000) res.status(400).json({ message: "Event ID already exists" });
-    else res.status(400).json({ message: err.message });
+    res.status(400).json({ message: err.message });
   }
 });
 
@@ -352,10 +351,12 @@ app.post('/api/v1/events', async (req, res) => {
 app.put('/api/v1/events/:id', async (req, res) => {
   try {
     const urlId = parseInt(req.params.id);
-    const { eventID } = req.body;
-    if (parseInt(eventID) !== urlId) return res.status(400).json({ message: "eventID in body must match URL ID" });
+    
+    // We remove eventID from body to prevent users from changing it
+    const updateData = { ...req.body };
+    delete updateData.eventID;
 
-    const event = await Event.findOneAndUpdate({ eventID: urlId }, req.body, { new: true });
+    const event = await Event.findOneAndUpdate({ eventID: urlId }, updateData, { new: true });
     if (!event) return res.status(404).json({ message: 'Event not found' });
     res.status(200).json({ message: "Event updated successfully", event });
   } catch (err) {
@@ -437,7 +438,6 @@ app.delete('/api/v1/events/:id', async (req, res) => {
 
 // ====== Server Startup Logic ======
 
-// Only listen to port if running locally (not in Vercel)
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
@@ -445,5 +445,4 @@ if (require.main === module) {
   });
 }
 
-// Export app for Vercel
 module.exports = app;
