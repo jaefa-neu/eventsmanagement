@@ -52,7 +52,7 @@
         const { useState, useEffect } = React;
 
         // =========================================================
-        // 👇 PASTE YOUR VERCEL URL HERE 👇
+        // 👇 YOUR VERCEL URL 👇
         const BACKEND_URL = 'https://eventsmanagement-seven.vercel.app'; 
         // =========================================================
 
@@ -116,7 +116,7 @@
                     if(res.ok) setEvents(data.events || []);
                     else throw new Error(data.message || 'Failed to fetch');
                 } catch (err) {
-                    setError(`Could not load events. Check your Vercel URL connection.`);
+                    setError(`Could not load events. Check your connection.`);
                     console.error(err);
                 } finally {
                     setLoading(false);
@@ -147,8 +147,8 @@
                     return;
                 }
 
+                // Prepare Payload
                 const payload = {
-                    eventID: parseInt(formData.eventID),
                     eventName: formData.eventName,
                     client: formData.client,
                     type: formData.type,
@@ -160,12 +160,18 @@
                     year: parseInt(formData.date.split('-')[0])
                 };
 
-                // UPDATED: Logic to handle new route requirements
-                // PUT uses /api/v1/events/:id
-                // POST uses /api/v1/events/events (Based on your table)
+                // Only include eventID if we are Editing (Update)
+                // If Creating, the Backend will generate it automatically
+                if (isEditing) {
+                    payload.eventID = parseInt(formData.eventID);
+                }
+
+                // URL Logic:
+                // Create: POST to /api/v1/events (API_URL)
+                // Update: PUT to /api/v1/events/:id
                 const url = isEditing 
                     ? `${API_URL}/${formData.eventID}` 
-                    : `${API_URL}/events`; 
+                    : API_URL; 
 
                 const method = isEditing ? 'PUT' : 'POST';
 
@@ -208,7 +214,7 @@
             // Open New Form
             const openNew = () => {
                 setFormData({
-                    eventID: Math.floor(Math.random() * 100000), 
+                    eventID: '', // ID is now handled by backend
                     eventName: '', 
                     client: '',
                     type: 'Meeting',
@@ -272,12 +278,7 @@
 
                     <main className="max-w-4xl mx-auto px-4 py-8">
                         
-                        {BACKEND_URL.includes('localhost') && !window.location.href.includes('localhost') && (
-                             <div className="bg-amber-50 text-amber-700 p-3 rounded-lg mb-4 text-sm border border-amber-200">
-                                <strong>Setup Note:</strong> You are using 'localhost' as the API URL. If your backend is on Vercel, please edit the code and paste your Vercel URL in the <code>BACKEND_URL</code> variable.
-                            </div>
-                        )}
-
+                        {/* Error Message */}
                         {error && (
                             <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6 flex flex-col gap-1">
                                 <div className="flex items-center gap-2 font-bold">
@@ -393,7 +394,7 @@
                             <div className="fade-in max-w-lg mx-auto bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
                                 <div className="flex justify-between items-center mb-6">
                                     <h2 className="text-2xl font-bold text-gray-800">
-                                        {isEditing ? 'Edit Event' : 'Add Event'}
+                                        {isEditing ? 'Edit Event' : 'New Event'}
                                     </h2>
                                     <button onClick={() => setView('list')} className="text-gray-400 hover:text-gray-600">
                                         <i className="ph-bold ph-x text-xl"></i>
@@ -401,17 +402,22 @@
                                 </div>
                                 
                                 <form onSubmit={handleSubmit} className="space-y-5">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-600 mb-1">Event ID</label>
-                                        <input 
-                                            type="number" 
-                                            required
-                                            disabled={isEditing} 
-                                            className={`w-full p-3 bg-gray-50 border border-gray-200 rounded-lg ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                            value={formData.eventID}
-                                            onChange={e => setFormData({...formData, eventID: e.target.value})}
-                                        />
-                                    </div>
+                                    {/* 
+                                       UPDATE: Event ID is hidden for new events because 
+                                       the backend now auto-generates it. 
+                                    */}
+                                    {isEditing && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-600 mb-1">Event ID</label>
+                                            <input 
+                                                type="number" 
+                                                disabled 
+                                                className="w-full p-3 bg-gray-100 border border-gray-200 rounded-lg opacity-70 cursor-not-allowed"
+                                                value={formData.eventID}
+                                            />
+                                            <p className="text-xs text-gray-400 mt-1">ID cannot be changed</p>
+                                        </div>
+                                    )}
 
                                     <div>
                                         <label className="block text-sm font-medium text-gray-600 mb-1">Name of Event</label>
