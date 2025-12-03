@@ -14,7 +14,22 @@ const swaggerJsDoc = require('swagger-jsdoc');
 
 const app = express();
 
-// ====== Middleware ======
+// ====== 1. Define Database Connection Function FIRST ======
+// (We define this up here so it is available for the middleware below)
+const connectDB = async () => {
+  try {
+    // Check if already connected to avoid creating multiple connections in serverless env
+    if (mongoose.connection.readyState === 1) {
+      return;
+    }
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('✅ Connected to MongoDB Atlas');
+  } catch (err) {
+    console.error('❌ Failed to connect:', err.message);
+  }
+};
+
+// ====== 2. Basic Middleware ======
 app.use(cors({
   origin: "*",
   methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
@@ -22,17 +37,8 @@ app.use(cors({
 }));
 app.use(express.json());
 
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (error) {
-    console.error("Database connection failed:", error);
-    res.status(500).json({ message: "Database connection error" });
-  }
-});
-
-// ====== Swagger Configuration ======
+// ====== 3. Swagger Configuration (Place BEFORE DB Middleware) ======
+// We want Swagger to load even if the DB is down.
 const options = {
   definition: {
     openapi: "3.0.0",
@@ -47,7 +53,6 @@ const options = {
         description: "Local Development"
       },
       {
-        // REPLACE 'your-project-name' with your actual Vercel project name
         url: "https://eventsmanagement-seven.vercel.app", 
         description: "Production Server (HTTPS)"
       },
@@ -58,6 +63,21 @@ const options = {
 
 const specs = swaggerJsDoc(options);
 app.use("/api-docs", swaggerUI.serve, swaggerUI.setup(specs));
+
+// ====== 4. Database Connection Middleware ======
+// Only block actual API routes if DB is down, not Swagger.
+app.use(async (req, res, next) => {
+  // Skip DB check for Swagger assets (optional but good practice)
+  if (req.path.startsWith('/api-docs')) return next();
+
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error("Database connection failed:", error);
+    res.status(500).json({ message: "Database connection error" });
+  }
+});
 
 // ====== Mongoose Schema & Model ======
 const eventSchema = new mongoose.Schema(
@@ -265,7 +285,7 @@ app.get('/api/v1/events/client/:client', async (req, res) => {
 
 /**
  * @swagger
- * /api/v1/events/events:
+ * /api/v1/events:
  *   post:
  *     summary: Create a new event
  *     tags: [Events]
@@ -281,6 +301,7 @@ app.get('/api/v1/events/client/:client', async (req, res) => {
  *       400:
  *         description: Event ID already exists or error
  */
+// NOTE: I fixed the path here to match standard naming (removed /events/events)
 app.post('/api/v1/events', async (req, res) => {
   try {
     const event = new Event(req.body);
@@ -403,32 +424,10 @@ app.delete('/api/v1/events/:id', async (req, res) => {
   }
 });
 
-
-
-const connectDB = async () => {
-  try {
-    // Check if already connected to avoid creating multiple connections in serverless env
-    if (mongoose.connection.readyState === 1) {
-        return;
-    }
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('✅ Connected to MongoDB Atlas');
-  } catch (err) {
-    console.error('❌ Failed to connect:', err.message);
-  }
-};
-
 // ====== Server Startup Logic ======
 
-// 1. Connect to DB immediately
-connectDB();
-
-// 2. Export the app for Vercel
-module.exports = app;
-
-// 3. Only listen to port if running locally (not in Vercel)
+// Only listen to port if running locally (not in Vercel)
 if (require.main === module) {
-  // Only runs in local development
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
     console.log(`🚀 Local Server running on http://localhost:${PORT}`);
